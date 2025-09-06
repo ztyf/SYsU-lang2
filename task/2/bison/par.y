@@ -36,9 +36,9 @@ void yyerror (char const *);	// 该函数定义在 par.cpp 中
 }
 
 /* 在下面说明每个非终结符对应的 union 成员，以便进行编译期类型检查 */
-%type <Type> declaration_specifiers type_specifier
+%type <Type> declaration_specifiers type_specifier type_qualifier
 
-%type <Expr> additive_expression multiplicative_expression unary_expression postfix_expression
+%type <Expr> additive_expression multiplicative_expression cast_expression unary_expression postfix_expression
 %type <Expr> expression primary_expression assignment_expression initializer initializer_list
 %type <Expr> logical_or_expression logical_and_expression equality_expression relational_expression
 
@@ -46,6 +46,11 @@ void yyerror (char const *);	// 该函数定义在 par.cpp 中
 %type <CompoundStmt> compound_statement block_item_list
 %type <ExprStmt> expression_statement
 %type <ReturnStmt> jump_statement
+%type <IfStmt> selection_statement
+%type <WhileStmt> iteration_statement
+%type <BreakStmt> jup_statement
+%type <ContinueStmt> jmp_statement
+%type <NullStmt>exxpression_statement
 
 %type <Decls> external_declaration declaration init_declarator_list parameter_list
 %type <Exprs> argument_expression_list
@@ -57,8 +62,7 @@ void yyerror (char const *);	// 该函数定义在 par.cpp 中
 %token <RawStr> IDENTIFIER CONSTANT
 %token INT VOID
 
-%token RETURN
-
+%token RETURN CONST IF ELSE WHILE BREAK CONTINUE EQ_OP AND_OP OR_OP LE_OP GE_OP NE_OP
 %start start
 
 %%
@@ -151,7 +155,22 @@ declaration_specifiers
       $$ = $2;
       $$->spec = $1->spec;
     }
+
+  | type_qualifier { $$ = $1; }
+  | type_qualifier declaration_specifiers
+    {
+      $$ = $2;
+      $$->qual = $1->qual;
+    }
   ;
+
+type_qualifier
+  : CONST
+    {
+      $$ = par::gMgr.make<asg::Type>();
+      $$->qual.const_ = true;
+    }
+ ;
 
 type_specifier
   : VOID
@@ -320,8 +339,22 @@ block_item
 
 statement
   : compound_statement { $$ = $1; }
+  | exxpression_statement { $$ = $1; }
   | expression_statement { $$ = $1; }
   | jump_statement { $$ = $1; }
+  | jup_statement { $$ = $1; }
+  | jmp_statement { $$ = $1; }
+  // | labeled_statement
+  | selection_statement { $$ = $1; }
+  | iteration_statement { $$ = $1; }
+  ;
+
+exxpression_statement
+  : ';'
+    {
+      $$ = par::gMgr.make<asg::NullStmt>();
+    }
+  
   ;
 
 expression_statement
@@ -329,6 +362,36 @@ expression_statement
     {
       $$ = par::gMgr.make<asg::ExprStmt>();
       $$->expr = $1;
+    }
+  
+  ;
+
+selection_statement
+  : IF '(' expression ')' statement
+    {
+      auto p = par::gMgr.make<asg::IfStmt>();
+      p->cond = $3;
+      p->then = $5;
+      $$ = p;
+    }
+  | IF '(' expression ')' statement ELSE statement
+    {
+      auto p = par::gMgr.make<asg::IfStmt>();
+      p->cond = $3;
+      p->then = $5;
+      p->else_ = $7;
+      $$ = p;
+    }
+  // | SWITCH '(' expression ')' statement
+  ;
+
+iteration_statement
+  : WHILE '(' expression ')' statement
+    {
+      auto p = par::gMgr.make<asg::WhileStmt>();
+      p->cond = $3;
+      p->body = $5;
+      $$ = p;
     }
   ;
 
@@ -344,6 +407,22 @@ jump_statement
       $$->func = par::gCurrentFunction;
       $$->expr = $2;
     }
+  // : GOTO IDENTIFIER ';'
+  // | CONTINUE ';'
+
+jup_statement
+  : BREAK ';'
+    {
+      $$ = par::gMgr.make<asg::BreakStmt>();
+    }
+  ;
+
+jmp_statement
+  : CONTINUE ';'
+    {
+      $$ = par::gMgr.make<asg::ContinueStmt>();
+    }
+  ;
 
 expression
   : assignment_expression { $$ = $1; }
@@ -369,18 +448,84 @@ assignment_expression
 
 logical_or_expression
   : logical_and_expression { $$ = $1; }
+  | logical_or_expression OR_OP logical_and_expression
+    {
+    auto p = par::gMgr.make<asg::BinaryExpr>();
+      p->op = asg::BinaryExpr::Op::kOr;
+      p->lft = $1;
+      p->rht = $3;
+      $$ = p;
+    }
   ;
 
 logical_and_expression
   : equality_expression { $$ = $1; }
+  | logical_and_expression AND_OP equality_expression
+    {
+      auto p = par::gMgr.make<asg::BinaryExpr>();
+      p->op = asg::BinaryExpr::Op::kAnd;
+      p->lft = $1;
+      p->rht = $3;
+      $$ = p;
+    }
   ;
 
 equality_expression
   : relational_expression { $$ = $1; }
+  | equality_expression EQ_OP relational_expression
+    {
+      auto p = par::gMgr.make<asg::BinaryExpr>();
+      p->op = asg::BinaryExpr::Op::kEq;
+      p->lft = $1;
+      p->rht = $3;
+      $$ = p;
+    }
+  | equality_expression NE_OP relational_expression
+    {
+      auto p = par::gMgr.make<asg::BinaryExpr>();
+      p->op = asg::BinaryExpr::Op::kNe;
+      p->lft = $1;
+      p->rht = $3;
+      $$ = p;
+    }
   ;
 
 relational_expression
   : additive_expression { $$ = $1; }
+  | relational_expression '<' additive_expression
+    {
+      auto p = par::gMgr.make<asg::BinaryExpr>();
+      p->op = asg::BinaryExpr::Op::kLt;
+      p->lft = $1;
+      p->rht = $3;
+      $$ = p;
+    }
+  | relational_expression '>' additive_expression
+    {
+      auto p = par::gMgr.make<asg::BinaryExpr>();
+      p->op = asg::BinaryExpr::Op::kGt;
+      p->lft = $1;
+      p->rht = $3;
+      $$ = p;
+    }
+  | relational_expression LE_OP additive_expression
+    {
+      auto p = par::gMgr.make<asg::BinaryExpr>();
+      p->op = asg::BinaryExpr::Op::kLe;
+      p->lft = $1;
+      p->rht = $3;
+      $$ = p;
+    }
+  | relational_expression GE_OP additive_expression
+    {
+      {
+      auto p = par::gMgr.make<asg::BinaryExpr>();
+      p->op = asg::BinaryExpr::Op::kGe;
+      p->lft = $1;
+      p->rht = $3;
+      $$ = p;
+    }
+    }
   ;
 
 additive_expression
@@ -402,8 +547,37 @@ additive_expression
   ;
 
 multiplicative_expression
-  : unary_expression  { $$ = $1;}
+  : unary_expression { $$ = $1;}
+  | multiplicative_expression '*' unary_expression
+   {
+      auto p = par::gMgr.make<asg::BinaryExpr>();
+      p->op = asg::BinaryExpr::Op::kMul;
+      p->lft = $1, p->rht = $3;
+      $$ = p;
+    }
+  | multiplicative_expression '/' unary_expression
+    {
+      auto p = par::gMgr.make<asg::BinaryExpr>();
+      p->op = asg::BinaryExpr::Op::kDiv;
+      p->lft = $1, p->rht = $3;
+      $$ = p;
+    }
+  | multiplicative_expression '%' unary_expression
+    {
+      auto p = par::gMgr.make<asg::BinaryExpr>();
+      p->op = asg::BinaryExpr::Op::kMod;
+      p->lft = $1, p->rht = $3;
+      $$ = p;
+    }
   ;
+
+// cast_expression
+//   : unary_expression { $$ = $1;}
+//   | '(' type_name ')' cast_expression
+//     {
+
+//     }
+//   ;
 
 unary_expression
   : postfix_expression { $$ = $1;}
@@ -414,10 +588,51 @@ unary_expression
       p->sub = $2;
       $$ = p;
     }
+  | '+' unary_expression
+    {
+      auto p = par::gMgr.make<asg::UnaryExpr>();
+      p->op = asg::UnaryExpr::Op::kPos;
+      p->sub = $2;
+      $$ = p;
+    }
+  | '!' unary_expression
+    {
+      auto p = par::gMgr.make<asg::UnaryExpr>();
+      p->op = asg::UnaryExpr::Op::kNot;
+      p->sub = $2;
+      $$ = p;
+    }
   ;
 
 postfix_expression
   : primary_expression { $$ = $1; }
+  | postfix_expression '[' expression ']'
+    {
+      auto p = par::gMgr.make<asg::BinaryExpr>();
+      p->op = asg::BinaryExpr::Op::kIndex;
+      p->lft = $1;
+      p->rht = $3;
+      $$ = p;
+    }
+  | postfix_expression '(' ')'
+    {
+      auto p = par::gMgr.make<asg::CallExpr>();
+      p->head = $1;
+      $$ = p;
+    }
+  | postfix_expression '(' argument_expression_list ')'
+    {
+      auto p = par::gMgr.make<asg::CallExpr>();
+      p->head = $1;
+      p->args = * $3;
+      $$ = p;
+    }
+  // | postfix_expression '.' IDENTIFIER
+  // | postfix_expression PTR_OP IDENTIFIER
+  // | postfix_expression INC_OP
+  // | postfix_expression DEC_OP
+  // | '(' type_name ')' '{' initializer_list '}'
+  // | '(' type_name ')' '{' initializer_list ',' '}'
   ;
 
 primary_expression
@@ -434,8 +649,17 @@ primary_expression
   | CONSTANT
     {
       auto p = par::gMgr.make<asg::IntegerLiteral>();
-      p->val = std::stoull(*$1, nullptr, 10);
+      // p->val = std::stoull(*$1, nullptr, 10);
+      size_t pos = 0;
+      p->val = std::stoull(*$1, &pos, 0);
       delete $1;
+      $$ = p;
+    }
+  // | STRING_LITERAL
+  | '(' expression ')'
+    {
+      auto p = par::gMgr.make<asg::ParenExpr>();
+      p->sub = $2;
       $$ = p;
     }
   ;
@@ -485,8 +709,8 @@ initializer
       auto callExpr = $1->dcst<asg::CallExpr>();
       if (callExpr != nullptr)
       {
-        auto implicitCastExpr = dynamic_cast<asg::ImplicitCastExpr*>(callExpr->head);
-        auto declRefExpr = dynamic_cast<asg::DeclRefExpr*>(implicitCastExpr->sub);
+        // auto implicitCastExpr = dynamic_cast<asg::ImplicitCastExpr*>(callExpr->head);
+        // auto declRefExpr = dynamic_cast<asg::DeclRefExpr*>(implicitCastExpr->sub);
         $$ = callExpr;
       }
       else
@@ -522,6 +746,8 @@ initializer_list
         initListExpr1->list.push_back(exper);
       $$ = initListExpr1;
     }
+  // | designation initializer
+  // | initializer_list ',' designation initializer
   ;
 
 %%

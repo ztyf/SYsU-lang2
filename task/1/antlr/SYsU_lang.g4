@@ -1,7 +1,16 @@
-lexer grammar SYsULexer;
+lexer grammar SYsU_lang;
 
 Int : 'int';
 Return : 'return';
+If : 'if';
+Else : 'else';
+Void : 'void';
+While : 'while';
+Break : 'break';
+Continue : 'continue';
+Pipepipe : '||';
+Ampamp : '&&';
+
 
 LeftParen : '(';
 RightParen : ')';
@@ -9,13 +18,26 @@ LeftBracket : '[';
 RightBracket : ']';
 LeftBrace : '{';
 RightBrace : '}';
+Const : 'const';
 
 Plus : '+';
+Minus : '-';
+Star : '*';
+Slash : '/';
+Percent : '%';
+Greater : '>';
+Less : '<';
 
 Semi : ';';
 Comma : ',';
 
+Equalequal : '==';
 Equal : '=';
+Lessequal : '<=';
+Greaterequal : '>=';
+Exclaimequal : '!=';
+Exclaim : '!';
+
 
 Identifier
     :   IdentifierNondigit
@@ -47,6 +69,7 @@ fragment
 IntegerConstant
     :   DecimalConstant
     |   OctalConstant
+    |   HexadecimalConstant
     ;
 
 fragment
@@ -58,7 +81,9 @@ fragment
 OctalConstant
     :   '0' OctalDigit*
     ;
-
+HexadecimalConstant
+    :   '0x' HexadecimalDigit*
+    ;
 
 fragment
 NonzeroDigit
@@ -69,18 +94,22 @@ fragment
 OctalDigit
     :   [0-7]
     ;
+HexadecimalDigit
+    :   [0-9]
+    |   [a-f]
+    ;
 
 
 // 预处理信息处理，可以从预处理信息中获得文件名以及行号
 // 预处理信息前面的数组即行号
 LineAfterPreprocessing
     :   '#' Whitespace* ~[\r\n]*
-        -> skip
+        
     ;
 
 Whitespace
     :   [ \t]+
-        -> skip
+        
     ;
 
 // 换行符号，可以利用这个信息来更新行号
@@ -88,6 +117,5 @@ Newline
     :   (   '\r' '\n'?
         |   '\n'
         )
-        -> skip
     ;
 
